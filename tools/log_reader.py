@@ -1,10 +1,5 @@
 '''
-Note: This script can not be run in this plaformIO project. Creat a clean directory and a vertual environment in order to run this code.
-
-Strtup Steps:
-1. Run .\duet-env\Scripts\Activate.ps1 on VSCode bootup
-2. Run the lor_reader/data_logger/py (data_logger.py is file I wrote this code in)
-3. Run GCode Script (Message will pop up on Duet GUI reminding you to run this script first)
+1. Run .\duet-env\Scripts\Activate.ps1 before starting the script
 '''
 import serial
 import time
@@ -12,6 +7,7 @@ from datetime import datetime
 import requests
 import threading
 from queue import Queue
+import json
 
 DUET_IP = '169.254.1.2'
 DUET_POLL_INTERVAL = 0.3
@@ -19,7 +15,25 @@ DUET_POLL_INTERVAL = 0.3
 ARDUINO_PORT = 'COM8'
 ARDUINO_BAUD = 9600
 
-TARGET_TEMP = 30
+MIN_TEMP = None
+MAX_TEMP = None
+with open('persistent_data.json', "r") as f:
+    loaded_data = json.load(f)
+    MIN_TEMP = loaded_data['min_temp']
+    MAX_TEMP = loaded_data['max_temp']
+
+
+res = input(f"Would you like to change the current Minimum Temperature: {MIN_TEMP} or Maximum Temperature: {MAX_TEMP}? Y/n: ")
+if res == 'Y' or res == 'y':
+    MIN_TEMP = input("Set Minimum Temp:")
+    MAX_TEMP = input("Set Maximum Temp:")
+print(f"Maximum Temperature: {MAX_TEMP} | Minimum Temperature: {MIN_TEMP}")
+
+with open('persistent_data.json', 'w') as f:
+    json.dump({
+        'min_temp': float(MIN_TEMP),
+        'max_temp': float(MAX_TEMP)
+    }, f, indent=2)
 
 #TRACKING VARIABLES
 currentLayer = 0
@@ -30,14 +44,21 @@ temp = None
 message_queue = Queue()
     
 #ESTABLISH CONNECTIONS
-ser_arduino = serial.Serial(ARDUINO_PORT, ARDUINO_BAUD, timeout=1)
-time.sleep(1)
-print("Connectd to Arduino on", ARDUINO_PORT)
+try:
+    ser_arduino = serial.Serial(ARDUINO_PORT, ARDUINO_BAUD, timeout=1)
+    time.sleep(1)
+    print("Connectd to Arduino on", ARDUINO_PORT)
+except:
+    print("FAILED TO CONNECT WITH ARDUINO.")
 
-session_info = requests.get(f"http://{DUET_IP}/rr_connect?password=", timeout=0.5)
-session_key = session_info.json()["sessionKey"]
-if len(session_info.json()) > 1:
-    print("Connected to Duet Board. Session Key:", session_key)
+try:
+    session_info = requests.get(f"http://{DUET_IP}/rr_connect?password=", timeout=0.5)
+    session_key = session_info.json()["sessionKey"]
+    if len(session_info.json()) > 1:
+        print("Connected to Duet Board. Session Key:", session_key)
+except Exception as e:
+    print("FAILED TO CONNECT WITH DUET BOARD.")
+    print("Error:", e)
 
 #INTILIZE TRACKING OF AVAILABLE MESSAGES FOR HTTP READ
 initial_comm_count = requests.get(f"http://{DUET_IP}/rr_model?key=seqs&sessionKey={session_key}", timeout=0.5).json()["result"]["reply"]
@@ -92,7 +113,7 @@ with open('log.csv', 'w') as f:
                     should_log = (
                         now - last_log_time >= 0.7
                         or last_log_time == 0.0
-                        or temp >= TARGET_TEMP
+                        or temp >= MIN_TEMP or temp <= MAX_TEMP
                     )
                     if should_log:
                         elapsed = now - start
@@ -105,12 +126,19 @@ with open('log.csv', 'w') as f:
                     currentBead += 1
                     reset_timer=True
                     print(f"Bead {currentBead} done.")
+                if action == "abort":
+                    print("Layer has cooled below Minimum Acceptable Temperature. Print Failed. Womp Womp.")
+                    # requests.get(f"http://{DUET_IP}/rr_gcode?gcode=M0&sessionKey={session_key}", timeout=0.5)
+                    # time.sleep(3000)
+                    # requests.get(f"http://{DUET_IP}/rr_gcode?gcode=G28&sessionKey={session_key}", timeout=0.5)
+
+
     except KeyboardInterrupt:
         print('\nExiting.')
-        duet_thread.join()
-        ser_arduino.close()
+        stop_event.set()
     finally:
         duet_thread.join()
+        stop_event.set()
         ser_arduino.close()
         requests.get(f"http://{DUET_IP}/rr_disconnect?sessionKey={session_key}", timeout=0.5)
 
