@@ -53,7 +53,10 @@ except:
 
 try:
     session_info = requests.get(f"http://{DUET_IP}/rr_connect?password=", timeout=0.5)
-    session_key = session_info.json()["sessionKey"]
+    if session_info.json()["sessionKey"]:
+        session_key = session_info.json()["sessionKey"]
+    else:
+        session_key = 0
     if len(session_info.json()) > 1:
         print("Connected to Duet Board. Session Key:", session_key)
 except Exception as e:
