@@ -1,6 +1,10 @@
+
 #Loads session keys dynamically
 '''
+THIS FOLDER MUST BE COPIED INTO ITS OWN WORKSPACE AND RUN INDIPENDENTLY FROM THE ARDUINO PROJECTIO FOLDER.
+
 1. Run .\duet-env\Scripts\Activate.ps1 before starting the script
+2. Run python data_logger.py
 '''
 import serial
 import time
@@ -149,6 +153,3 @@ with open('log.csv', 'w') as f:
         stop_event.set()
         ser_arduino.close()
         requests.get(f"http://{DUET_IP}/rr_disconnect?sessionKey={session_key}", timeout=0.5)
-
-
-

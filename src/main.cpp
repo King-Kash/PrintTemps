@@ -75,6 +75,8 @@
 // }
 
 
+//VERSION FOR NEW CAMERA SENSOR
+
 #include <Arduino.h>
 #include <CircularBuffer.h>
 
@@ -85,15 +87,15 @@ const int tempPin = A0;
 float a;
 float b;
 
-const int temp_1 = 0;
-const int temp_2 = 1300;
+const int temp_1 = 50;
+const int temp_2 = 400;
 
 const int outputPin = 3;
 const int inputPin = 4;
 
 // bool stop_tracking = false;
-const float min_temp = 26;
-const float max_temp = 30;
+const float min_temp = 150;
+const float max_temp = 175;
 
 int currentLayer = 0;
 
@@ -147,6 +149,6 @@ void loop() {
           tempWindow.shift();
         }
       }
-      delay(200);
+      delay(130);
   }
 }
